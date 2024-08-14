@@ -3,7 +3,9 @@ from gtts import gTTS
 import os
 from fuzzywuzzy import fuzz
 from dotenv import load_dotenv
+import time
 
+# Load environment variables from .env file
 load_dotenv()
 
 # Access environment variables
@@ -16,7 +18,6 @@ client = OpenAI(
     base_url=HUGGINGFACE_BASE_URL,
     api_key=HUGGINGFACE_API_KEY
 )
-
 
 def guard_check(content):
     chat_completion = client.chat.completions.create(
@@ -36,19 +37,20 @@ def guard_check(content):
             flag = False
     return flag
 
-
-# Replace with your own OpenAI API key
-
-
-ALLOWED_TOPICS = ["airplanes"]
-
+# Allowed topics for the chatbot
+ALLOWED_TOPICS = ["airplanes", "cars"]
 
 def is_question_within_topic_fuzzy(question: str, allowed_topics: list):
     for topic in allowed_topics:
         if fuzz.partial_ratio(topic.lower(), question.lower()) > 70:
             return True
     return False
-
+#SIMULIRAJ SS OPENAI NE SS DELAY
+def type_out_text(text, delay=0.05):
+    for char in text:
+        print(char, end='', flush=True)
+        time.sleep(delay)
+    print()  # Move to the next line after typing the text
 
 def chatbot(prompt):
     try:
@@ -57,40 +59,41 @@ def chatbot(prompt):
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
-        return response.choices[0].message.content.strip()
+        response_text = response.choices[0].message.content.strip()
+        return response_text
     except Exception as e:
         return f"Error: {str(e)}"
-
 
 def speak_text(text):
     tts = gTTS(text, lang='en', tld='com', slow=False)
     tts.save("response.mp3")
-    os.system("mpg123 response.mp3")
-
+    os.system("mpg123 response.mp3 > /dev/null 2>&1")
 
 def greeting():
     greeting_message = "Hi! How can I help you today?"
-    print("Chatbot: " + greeting_message)
+    print("Chatbot: ", end='')
+    type_out_text(greeting_message)
     speak_text(greeting_message)
 
-
-if __name__ == "__main__":
+if _name_ == "__main__":
     greeting()
     while True:
         user_input = input("You: ")
         if user_input.lower() in ["exit", "quit"]:
-            print("Chatbot: Goodbye!")
+            print("Chatbot: ", end='')
+            type_out_text("Goodbye!")
             speak_text("Goodbye!")
             break
 
         if guard_check(user_input):
             if is_question_within_topic_fuzzy(user_input, ALLOWED_TOPICS):
                 response = chatbot(user_input)
-                print(f"Chatbot: {response}")
+                print("Chatbot: ", end='')
+                type_out_text(response)
                 speak_text(response)
             else:
-                print("Not in the topic for the day")
+                print("Chatbot: Not in the topic for the day")
                 speak_text("Not in the topic for the day")
         else:
-            print("Not safe for our ChatBot!")
+            print("Chatbot: Not safe for our ChatBot!")
             speak_text("Not safe for our ChatBot")
