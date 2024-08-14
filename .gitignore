@@ -1,7 +1,7 @@
 # Ignore Python virtual environments
 venv/
 .env
-
+*.mp3
 # Ignore other common files
 *.pyc
 *.pyo
