@@ -19,6 +19,7 @@ client = OpenAI(
     api_key=HUGGINGFACE_API_KEY
 )
 
+
 def guard_check(content):
     chat_completion = client.chat.completions.create(
         model="tgi",
@@ -37,20 +38,25 @@ def guard_check(content):
             flag = False
     return flag
 
+
 # Allowed topics for the chatbot
 ALLOWED_TOPICS = ["airplanes", "cars"]
+
 
 def is_question_within_topic_fuzzy(question: str, allowed_topics: list):
     for topic in allowed_topics:
         if fuzz.partial_ratio(topic.lower(), question.lower()) > 70:
             return True
     return False
-#SIMULIRAJ SS OPENAI NE SS DELAY
+
+
+# SIMULIRAJ SS OPENAI NE SS DELAY
 def type_out_text(text, delay=0.05):
     for char in text:
         print(char, end='', flush=True)
         time.sleep(delay)
     print()  # Move to the next line after typing the text
+
 
 def chatbot(prompt):
     try:
@@ -64,10 +70,12 @@ def chatbot(prompt):
     except Exception as e:
         return f"Error: {str(e)}"
 
+
 def speak_text(text):
     tts = gTTS(text, lang='en', tld='com', slow=False)
     tts.save("response.mp3")
     os.system("mpg123 response.mp3 > /dev/null 2>&1")
+
 
 def greeting():
     greeting_message = "Hi! How can I help you today?"
