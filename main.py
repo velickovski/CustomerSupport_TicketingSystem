@@ -75,7 +75,8 @@ def greeting():
     type_out_text(greeting_message)
     speak_text(greeting_message)
 
-if _name_ == "__main__":
+
+if __name__ == "__main__":
     greeting()
     while True:
         user_input = input("You: ")
