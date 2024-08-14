@@ -1,0 +1,19 @@
+# Ignore Python virtual environments
+venv/
+.env
+
+# Ignore other common files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.db
+*.sqlite3
+
+# Ignore IDE and editor-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
