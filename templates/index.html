@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Chatbot</title>
+    <!-- Import Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #3ba6fd 0%, #113942 100%);
+            animation: gradient 1s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 100% 100%; }
+            100% { background-position: 0% 0%; }
+        }
+
+        #chat-container {
+            width: 80%;
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        #header {
+            background: rgba(0, 123, 255, 0.7);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 2em;
+            font-weight: bold;
+            border-bottom: 2px solid #0056b3;
+            position: relative;
+            backdrop-filter: blur(5px);
+        }
+
+        #chat {
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            border-bottom: 1px solid #ccc;
+        }
+
+        #chat p {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #89c6ce;
+        }
+
+        #chat p.bot {
+            background-color: #89c6ce;
+            text-align: left;
+        }
+
+        #chat p.user {
+            background-color: #dcedc8;
+            text-align: right;
+        }
+
+        #input-container {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+        }
+
+        #input-container input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+
+        #input-container button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+
+        #input-container button:hover {
+            background-color: #0056b3;
+            transform: scale(1.1);
+        }
+
+        /* CSS to style the TTS button */
+        .tts-button {
+            display: none;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            font-size: 18px;
+            color: #007bff;
+        }
+
+        .bot {
+            position: relative; /* Ensure the TTS button is positioned relative to the message */
+        }
+
+        .bot:hover .tts-button {
+            display: block;
+        }
+
+        /* CSS for the toggle switch */
+        .switch {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: inline-block;
+            width: 34px;
+            height: 20px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 12px;
+            width: 12px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(14px);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="chat-container">
+        <div id="header">
+            ChatBot
+            <label class="switch">
+                <input type="checkbox" id="tts-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div id="chat"></div>
+        <div id="input-container">
+            <input id="message" type="text" placeholder="Type your message..." autocomplete="off" />
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+    <script>
+        // JavaScript for real-time chat application
+
+        // Connect to the server via Socket.IO
+        const socket = io();
+        let currentMessageId = null;
+
+
+        
+
+        // Handle incoming messages from the server
+        socket.on('response', function(data) {
+            const messageContainer = document.getElementById('chat');
+
+            if (data.formatted) {
+                // Replace the unformatted message with the formatted message
+                const messageToReplace = document.querySelector(`.bot[data-message-id="${data.message_id}"]`);
+                if (messageToReplace) {
+                    messageToReplace.innerHTML = formatMarkdown(data.message);
+                    scrollToBottom();
+                    addTTSButton(messageToReplace, data.message);
+                }
+            } else {
+                // Append chunk-by-chunk response text
+                if (data.message_id !== currentMessageId) {
+                    // Start a new message
+                    appendMessage('bot', data.message, data.message_id);
+                    currentMessageId = data.message_id;
+                } else {
+                    // Append chunk to the existing message
+                    const messageToUpdate = document.querySelector(`.bot[data-message-id="${data.message_id}"]`);
+                    if (messageToUpdate) {
+                        messageToUpdate.textContent += data.message;
+                    }
+                }
+            }
+        });
+
+        // Append a new message to the chat container
+        function appendMessage(sender, message, messageId) {
+            const messageContainer = document.getElementById('chat');
+            const newMessage = document.createElement('p');
+            newMessage.className = sender;
+            newMessage.setAttribute('data-message-id', messageId);
+            newMessage.textContent = message;
+            messageContainer.appendChild(newMessage);
+            scrollToBottom();
+        }
+
+        // Format text using markdown
+        function formatMarkdown(text) {
+            const markdownConverter = new showdown.Converter();
+            return markdownConverter.makeHtml(text);
+        }
+
+
+        
+
+        // Scroll to the bottom of the chat container
+        function scrollToBottom() {
+            const chatContainer = document.getElementById('chat');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Handle sending a message to the server
+        function sendMessage() {
+            const messageInput = document.getElementById('message');
+            const message = messageInput.value.trim();
+            if (message) {
+                appendMessage('user', message, null);
+                socket.emit('message', { message });
+                messageInput.value = '';
+            }
+        }
+
+
+
+
+
+
+
+
+
+    // Constants and Variables
+    const TTS_BUTTON_CLASS = 'tts-button';  // Class name for the TTS button
+    let isTtsEnabled = false;  // Default TTS state
+    let currentUtterance = null;  // Variable to store the current utterance
+
+    // Handle TTS Toggle Switch
+    document.getElementById('tts-toggle').addEventListener('change', function() {
+        isTtsEnabled = this.checked;
+
+        if (!isTtsEnabled && currentUtterance) {
+            // Stop TTS if it's currently speaking
+            speechSynthesis.cancel();
+        }
+    });
+
+    // Play Text-to-Speech
+    function playTTS(text) {
+        if (!isTtsEnabled) return;  // Exit if TTS is disabled
+
+        if (currentUtterance) {
+            speechSynthesis.cancel();  // Stop any ongoing TTS
+        }
+
+        currentUtterance = new SpeechSynthesisUtterance(text);
+        const voices = speechSynthesis.getVoices();
+        currentUtterance.voice = voices.find(voice => voice.name.includes('Google UK English Female')) || voices[0];
+
+        speechSynthesis.speak(currentUtterance);
+    }
+
+    // Add TTS Button Next to a Message
+    function addTTSButton(messageElement, text) {
+        // Check if the button already exists
+        if (messageElement.querySelector(`.${TTS_BUTTON_CLASS}`)) return;
+
+        // Create TTS button
+        const button = document.createElement('button');
+        button.className = TTS_BUTTON_CLASS;
+        button.innerHTML = '<i class="fas fa-volume-up"></i>';  // Speaker icon
+        button.title = 'Read Aloud';
+
+        // Add event listener for button click
+        button.addEventListener('click', () => {
+            playTTS(text);
+        });
+
+        // Append button to message element
+        messageElement.appendChild(button);
+    }
+
+    </script>
+</body>
+</html>

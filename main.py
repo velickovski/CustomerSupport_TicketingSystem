@@ -1,108 +1,62 @@
-from openai import OpenAI
-from gtts import gTTS
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+import openai
 import os
-from fuzzywuzzy import fuzz
 from dotenv import load_dotenv
-import time
-
-# Load environment variables from .env file
+import markdown
+# Load environment variables
 load_dotenv()
 
-# Access environment variables
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
-HUGGINGFACE_BASE_URL = os.getenv('HUGGINGFACE_BASE_URL')
+# Initialize Flask and Flask-SocketIO
+app = Flask(__name__)
+socketio = SocketIO(app)
 
 # Initialize OpenAI client
-client = OpenAI(
-    base_url=HUGGINGFACE_BASE_URL,
-    api_key=HUGGINGFACE_API_KEY
-)
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
+# Store conversation history
+conversation_history = []
 
-def guard_check(content):
-    chat_completion = client.chat.completions.create(
-        model="tgi",
-        messages=[
-            {
-                "role": "user",
-                "content": content
-            }
-        ],
-        stream=True,
-        max_tokens=20
-    )
-    flag = True
-    for message in chat_completion:
-        if message.choices[0].delta.content == "unsafe":
-            flag = False
-    return flag
+@app.route('/')
+def index():
+    return render_template('index.html')
 
+@socketio.on('message')
+def handle_message(data):
+    global conversation_history
 
-# Allowed topics for the chatbot
-ALLOWED_TOPICS = ["airplanes", "cars"]
+    user_input = data['message']
+    conversation_history.append({"role": "user", "content": user_input})
 
-
-def is_question_within_topic_fuzzy(question: str, allowed_topics: list):
-    for topic in allowed_topics:
-        if fuzz.partial_ratio(topic.lower(), question.lower()) > 70:
-            return True
-    return False
-
-
-# SIMULIRAJ SS OPENAI NE SS DELAY
-def type_out_text(text, delay=0.05):
-    for char in text:
-        print(char, end='', flush=True)
-        time.sleep(delay)
-    print()  # Move to the next line after typing the text
-
-
-def chatbot(prompt):
     try:
-        clients = OpenAI(api_key=OPENAI_API_KEY)
-        response = clients.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=conversation_history,
+            stream=True
         )
-        response_text = response.choices[0].message.content.strip()
-        return response_text
+
+        response_text = ""
+        markdown_needed = False  # Determine if markdown is needed
+
+        for chunk in response:
+            if 'choices' in chunk and len(chunk['choices']) > 0:
+                delta_content = chunk['choices'][0].get('delta', {}).get('content', '')
+                if delta_content:
+                    response_text += delta_content
+                    markdown_needed = markdown_needed or detect_markdown(delta_content)  # Detect markdown
+
+                    emit('response', {'message_id': str(len(conversation_history)), 'message': delta_content, 'formatted': False})
+
+        if markdown_needed:
+            formatted_text = markdown.markdown(response_text)
+            emit('response', {'message_id': str(len(conversation_history)), 'message': formatted_text, 'formatted': True})
+
     except Exception as e:
-        return f"Error: {str(e)}"
+        emit('response', {'message_id': str(len(conversation_history)), 'message': f"Error: {str(e)}", 'formatted': True})
 
-
-def speak_text(text):
-    tts = gTTS(text, lang='en', tld='com', slow=False)
-    tts.save("response.mp3")
-    os.system("mpg123 response.mp3 > /dev/null 2>&1")
-
-
-def greeting():
-    greeting_message = "Hi! How can I help you today?"
-    print("Chatbot: ", end='')
-    type_out_text(greeting_message)
-    speak_text(greeting_message)
-
+def detect_markdown(text):
+    # Implement logic to detect if the text contains markdown syntax
+    return any(char in text for char in ['*', '_', '#', '-'])
 
 if __name__ == "__main__":
-    greeting()
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() in ["exit", "quit"]:
-            print("Chatbot: ", end='')
-            type_out_text("Goodbye!")
-            speak_text("Goodbye!")
-            break
-
-        if guard_check(user_input):
-            if is_question_within_topic_fuzzy(user_input, ALLOWED_TOPICS):
-                response = chatbot(user_input)
-                print("Chatbot: ", end='')
-                type_out_text(response)
-                speak_text(response)
-            else:
-                print("Chatbot: Not in the topic for the day")
-                speak_text("Not in the topic for the day")
-        else:
-            print("Chatbot: Not safe for our ChatBot!")
-            speak_text("Not safe for our ChatBot")
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
