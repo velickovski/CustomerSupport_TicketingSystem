@@ -3,7 +3,11 @@ from flask_socketio import SocketIO, emit
 import openai
 import os
 from dotenv import load_dotenv
-import markdown
+import mistune
+
+# Load markdown and create
+markdown = mistune.create_markdown()
+
 # Load environment variables
 load_dotenv()
 
@@ -48,7 +52,7 @@ def handle_message(data):
                     emit('response', {'message_id': str(len(conversation_history)), 'message': delta_content, 'formatted': False})
 
         if markdown_needed:
-            formatted_text = markdown.markdown(response_text)
+            formatted_text = markdown(response_text)
             emit('response', {'message_id': str(len(conversation_history)), 'message': formatted_text, 'formatted': True})
 
     except Exception as e:
