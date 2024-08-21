@@ -174,7 +174,7 @@
 
     <div id="chat-container">
         <div id="header">
-            ChatBot
+            Customer Support
             <label class="switch">
                 <input type="checkbox" id="tts-toggle" checked>
                 <span class="slider"></span>
@@ -196,15 +196,18 @@
         const socket = io();
         let currentMessageId = null;
 
-
-        
+        // Automatically focus on the input field when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('message').focus();
+        });
 
         // Handle incoming messages from the server
         socket.on('response', function(data) {
+            console.log('Received data:', data);  // Log received data
+
             const messageContainer = document.getElementById('chat');
 
             if (data.formatted) {
-                // Replace the unformatted message with the formatted message
                 const messageToReplace = document.querySelector(`.bot[data-message-id="${data.message_id}"]`);
                 if (messageToReplace) {
                     messageToReplace.innerHTML = formatMarkdown(data.message);
@@ -212,13 +215,10 @@
                     addTTSButton(messageToReplace, data.message);
                 }
             } else {
-                // Append chunk-by-chunk response text
                 if (data.message_id !== currentMessageId) {
-                    // Start a new message
                     appendMessage('bot', data.message, data.message_id);
                     currentMessageId = data.message_id;
                 } else {
-                    // Append chunk to the existing message
                     const messageToUpdate = document.querySelector(`.bot[data-message-id="${data.message_id}"]`);
                     if (messageToUpdate) {
                         messageToUpdate.textContent += data.message;
@@ -244,9 +244,6 @@
             return markdownConverter.makeHtml(text);
         }
 
-
-        
-
         // Scroll to the bottom of the chat container
         function scrollToBottom() {
             const chatContainer = document.getElementById('chat');
@@ -264,64 +261,63 @@
             }
         }
 
-
-
-
-
-
-
-
-
-    // Constants and Variables
-    const TTS_BUTTON_CLASS = 'tts-button';  // Class name for the TTS button
-    let isTtsEnabled = false;  // Default TTS state
-    let currentUtterance = null;  // Variable to store the current utterance
-
-    // Handle TTS Toggle Switch
-    document.getElementById('tts-toggle').addEventListener('change', function() {
-        isTtsEnabled = this.checked;
-
-        if (!isTtsEnabled && currentUtterance) {
-            // Stop TTS if it's currently speaking
-            speechSynthesis.cancel();
-        }
-    });
-
-    // Play Text-to-Speech
-    function playTTS(text) {
-        if (!isTtsEnabled) return;  // Exit if TTS is disabled
-
-        if (currentUtterance) {
-            speechSynthesis.cancel();  // Stop any ongoing TTS
-        }
-
-        currentUtterance = new SpeechSynthesisUtterance(text);
-        const voices = speechSynthesis.getVoices();
-        currentUtterance.voice = voices.find(voice => voice.name.includes('Google UK English Female')) || voices[0];
-
-        speechSynthesis.speak(currentUtterance);
-    }
-
-    // Add TTS Button Next to a Message
-    function addTTSButton(messageElement, text) {
-        // Check if the button already exists
-        if (messageElement.querySelector(`.${TTS_BUTTON_CLASS}`)) return;
-
-        // Create TTS button
-        const button = document.createElement('button');
-        button.className = TTS_BUTTON_CLASS;
-        button.innerHTML = '<i class="fas fa-volume-up"></i>';  // Speaker icon
-        button.title = 'Read Aloud';
-
-        // Add event listener for button click
-        button.addEventListener('click', () => {
-            playTTS(text);
+        // Attach event listener for the Enter key
+        document.getElementById('message').addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent the default form submission behavior
+                sendMessage(); // Call the sendMessage function
+            }
         });
 
-        // Append button to message element
-        messageElement.appendChild(button);
-    }
+        // Constants and Variables
+        const TTS_BUTTON_CLASS = 'tts-button';  // Class name for the TTS button
+        let isTtsEnabled = false;  // Default TTS state
+        let currentUtterance = null;  // Variable to store the current utterance
 
+        // Handle TTS Toggle Switch
+        document.getElementById('tts-toggle').addEventListener('change', function() {
+            isTtsEnabled = this.checked;
+
+            if (!isTtsEnabled && currentUtterance) {
+                // Stop TTS if it's currently speaking
+                speechSynthesis.cancel();
+            }
+        });
+
+        // Play Text-to-Speech
+        function playTTS(text) {
+            if (!isTtsEnabled) return;  // Exit if TTS is disabled
+
+            if (currentUtterance) {
+                speechSynthesis.cancel();  // Stop any ongoing TTS
+            }
+
+            currentUtterance = new SpeechSynthesisUtterance(text);
+            const voices = speechSynthesis.getVoices();
+            currentUtterance.voice = voices.find(voice => voice.name.includes('Google UK English Female')) || voices[0];
+
+            speechSynthesis.speak(currentUtterance);
+        }
+
+        // Add TTS Button Next to a Message
+        function addTTSButton(messageElement, text) {
+            // Check if the button already exists
+            if (messageElement.querySelector(`.${TTS_BUTTON_CLASS}`)) return;
+
+            // Create TTS button
+            const button = document.createElement('button');
+            button.className = TTS_BUTTON_CLASS;
+            button.innerHTML = '<i class="fas fa-volume-up"></i>';  // Speaker icon
+            button.title = 'Read Aloud';
+
+            // Add event listener for button click
+            button.addEventListener('click', () => {
+                playTTS(text);
+            });
+
+            // Append button to message element
+            messageElement.appendChild(button);
+        }
     </script>
 </body>
 </html>
