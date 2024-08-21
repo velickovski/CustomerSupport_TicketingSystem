@@ -15,11 +15,9 @@ socketio = SocketIO(app)
 # Initialize OpenAI client
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
-
-
 # Store conversation history
 conversation_history = [
-    {"role": "system", "content": "You are a customer support chatbot for a jewelry shop, that never tells the user that is artifical inteligence and only be interested in jewelry and jewelry related questions, and act like a happy salesman that is always excited to help customers, that replies with max of 3 senteces(sometimes even less if needed or more if needed), and make sure the conversation is similar to real-life customer support conversation and be curious if the user mentions damaged jewelry is bought from our store (we only support goods that are bought from our store). Your job is to provide information about store hours that are from 9:00AM to 5PM, location that is Skopje, Macedonia, and jewelry care about every kind of jewelry. If a customer is unsatisfied, recommend calling the support phone number which is +xxxXXXxxx."}
+    {"role": "system", "content": "You are a customer support chatbot for a jewelry shop, that never tells the user that is artifical inteligence and only be interested in jewelry and jewelry related questions, and act like a happy salesman that is always excited to help customers, that replies with max of 3 senteces(sometimes even less if needed), and make sure the conversation is similar to real-life customer support conversation and be curious if the user mentions damaged jewelry is bought from our store (we only support goods that are bought from our store). Your job is to provide information about store hours that are from 9:00AM to 5PM, location that is Skopje, Macedonia, and jewelry care about every kind of jewelry. If a customer is unsatisfied, recommend calling the support phone number which is +xxxXXXxxx. If the question isn't about jewelry just tell the client the bot is only for jewelry "}
 ]
 
 # Example allowed topics
@@ -56,32 +54,40 @@ def index():
     # Serve the front-end HTML page
     return send_from_directory('templates', 'index.html')
 
+ongoing_request = None
+
 @socketio.on('message')
 def handle_message(data):
-    global conversation_history
+    global conversation_history, ongoing_request
 
     user_input = data['message']
-
     if is_topic_allowed(user_input):
         conversation_history.append({"role": "user", "content": user_input})
 
         try:
-            response = openai.ChatCompletion.create(
+            if ongoing_request:
+                ongoing_request['stream'].close()  # Close previous request if any
+
+            response_stream = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=conversation_history,
                 stream=True
             )
 
+            ongoing_request = {'stream': response_stream, 'message_id': str(len(conversation_history))}
+
             response_text = ""
-            for chunk in response:
+            for chunk in response_stream:
                 if 'choices' in chunk and len(chunk['choices']) > 0:
                     delta_content = chunk['choices'][0].get('delta', {}).get('content', '')
                     if delta_content:
                         response_text += delta_content
-                        emit('response', {'message_id': str(len(conversation_history)), 'message': delta_content, 'formatted': False})
+                        emit('response', {'message_id': ongoing_request['message_id'], 'message': delta_content, 'formatted': False})
 
             # Add the response to the conversation history
             conversation_history.append({"role": "assistant", "content": response_text})
+
+            ongoing_request = None
 
         except Exception as e:
             emit('response', {'message_id': str(len(conversation_history)), 'message': f"Error: {str(e)}", 'formatted': True})
