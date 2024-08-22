@@ -1,8 +1,8 @@
 from flask import Flask, render_template, send_from_directory
 from flask_socketio import SocketIO, emit
+from dotenv import load_dotenv
 import openai
 import os
-from dotenv import load_dotenv
 import numpy as np
 
 # Load environment variables
@@ -15,13 +15,34 @@ socketio = SocketIO(app)
 # Initialize OpenAI client
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
-# Store conversation history
-conversation_history = [
-    {"role": "system", "content": "You are a customer support chatbot for a jewelry shop, that never tells the user that is artifical inteligence and only be interested in jewelry and jewelry related questions, and act like a happy salesman that is always excited to help customers, that replies with max of 3 senteces(sometimes even less if needed), and make sure the conversation is similar to real-life customer support conversation and be curious if the user mentions damaged jewelry is bought from our store (we only support goods that are bought from our store). Your job is to provide information about store hours that are from 9:00AM to 5PM, location that is Skopje, Macedonia, and jewelry care about every kind of jewelry. If a customer is unsatisfied, recommend calling the support phone number which is +xxxXXXxxx. If the question isn't about jewelry just tell the client the bot is only for jewelry "}
-]
-
 # Example allowed topics
 allowed_topics = ["jewelry care", "store hours", "location", "ticket creation", "support"]
+# Store conversation history
+conversation_history = [
+    {
+        "role": "system",
+        "content": (
+            "You are a customer support chatbot for a jewelry shop. Your primary role is to assist customers "
+            "with any inquiries related to jewelry, while always maintaining the demeanor of a cheerful and "
+            "enthusiastic salesperson. It's essential that you never reveal you are an artificial intelligence; "
+            "your goal is to create a seamless, human-like interaction.\n\n"
+            
+            "Your responsibilities include providing information about our store's operating hours, which are "
+            "from 9:00 AM to 5:00 PM, and our location in Skopje, Macedonia. You should also offer detailed "
+            "advice on how to care for various types of jewelry, ensuring customers can maintain their items "
+            "in the best possible condition.\n\n"
+            
+            "If a customer mentions damaged jewelry, be particularly attentive, especially if the item was purchased "
+            "from our store, as we only support goods bought from us. Show empathy and offer solutions, but remember, "
+            "your responses should be concise, typically no more than three sentences. Sometimes, even shorter responses "
+            "are appropriate, especially in fast-paced conversations.\n\n"
+            
+            "In situations where a customer is unsatisfied with the assistance provided, gently suggest they contact our "
+            "support team via phone at +xxxXXXxxx. If a customer asks a question that isn't related to jewelry, kindly inform "
+            "them that you are only equipped to handle jewelry-related inquiries."
+        )
+    }
+]
 
 # Function to get embeddings for allowed topics
 def get_embeddings(topics):
@@ -45,13 +66,12 @@ def is_topic_allowed(user_input):
     user_embedding = openai.Embedding.create(input=user_input, model="text-embedding-ada-002")['data'][0]['embedding']
     for topic, embedding in allowed_embeddings.items():
         similarity = cosine_similarity(user_embedding, embedding)
-        if similarity > 0.7:  # Adjust threshold as needed
+        if similarity > 0.7:  # Threshold 
             return True
     return False
 
 @app.route('/')
 def index():
-    # Serve the front-end HTML page
     return send_from_directory('templates', 'index.html')
 
 ongoing_request = None
@@ -66,7 +86,7 @@ def handle_message(data):
 
         try:
             if ongoing_request:
-                ongoing_request['stream'].close()  # Close previous request if any
+                ongoing_request['stream'].close()
 
             response_stream = openai.ChatCompletion.create(
                 model="gpt-4",
@@ -94,11 +114,11 @@ def handle_message(data):
 
     else:
         # If the topic isn't allowed, suggest calling the support phone number
-        response_text = "I'm sorry, I can only help with questions related to our store hours, location, or jewelry care. For other inquiries, please call our support at +38972400567."
+        response_text = "I'm sorry, I can only help with questions related to our store. For other inquiries, please call our support at +38972400567."
         emit('response', {'message_id': str(len(conversation_history)), 'message': response_text, 'formatted': False})
 
         # Optionally add this to the conversation history
         conversation_history.append({"role": "assistant", "content": response_text})
 
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
