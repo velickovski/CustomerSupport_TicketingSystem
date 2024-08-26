@@ -99,87 +99,56 @@
             background-color: #0056b3;
             transform: scale(1.1);
         }
-
-        /* CSS to style the TTS button */
-        .tts-button {
+        #ticketModal {
             display: none;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            position: absolute;
-            right: 10px;
-            bottom: 10px;
-            font-size: 18px;
-            color: #007bff;
-        }
-
-        .bot {
-            position: relative; /* Ensure the TTS button is positioned relative to the message */
-        }
-
-        .bot:hover .tts-button {
-            display: block;
-        }
-
-        /* CSS for the toggle switch */
-        .switch {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            display: inline-block;
-            width: 34px;
-            height: 20px;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            display: none;
-            position: absolute;
-            cursor: pointer;
-            top: 0;
+            position: fixed;
+            z-index: 1;
             left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
         }
 
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 12px;
-            width: 12px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-
-        input:checked + .slider {
-            background-color: #2196F3;
-        }
-
-        input:checked + .slider:before {
-            transform: translateX(14px);
-        }
     </style>
 </head>
 <body>
-
+    <div id="ticketModal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Create a Ticket</h2>
+            <form id="ticketForm">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required><br><br>
+                <label for="description">Description:</label>
+                <textarea id="description" name="description" required></textarea><br><br>
+                <button type="button" onclick="submitTicket()">Submit</button>
+            </form>
+        </div>
+    </div>
     <div id="chat-container">
         <div id="header">
             Customer Support
-            <label class="switch">
-                <input type="checkbox" id="tts-toggle" checked>
-                <span class="slider"></span>
-            </label>
         </div>
         <div id="chat"></div>
         <div id="input-container">
@@ -187,7 +156,6 @@
             <button onclick="sendMessage()">Send</button>
         </div>
     </div>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
     <script>
@@ -201,7 +169,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('message').focus();
         });
-
+        
         // Handle incoming messages from the server
         socket.on('response', function(data) {
             console.log('Received data:', data);  // Log received data
@@ -261,7 +229,33 @@
                 messageInput.value = '';
             }
         }
+        
 
+
+
+        function openModal(data) {
+            document.getElementById('username').value = data.username || '';
+            document.getElementById('description').value = data.description || '';
+            document.getElementById('ticketModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('ticketModal').style.display = 'none';
+        }
+
+        function submitTicket() {
+            const username = document.getElementById('username').value;
+            const description = document.getElementById('description').value;
+            if (username && description) {
+                socket.emit('ticket_submission', { username: username, description: description });
+                closeModal();
+            } else {
+                alert('Please fill in all fields.');
+            }
+        }
+        socket.on('ticket', function(data) {
+            openModal(data);
+        });
         // Attach event listener for the Enter key
         document.getElementById('message').addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
@@ -270,55 +264,7 @@
             }
         });
 
-        // Constants and Variables
-        const TTS_BUTTON_CLASS = 'tts-button';  // Class name for the TTS button
-        let isTtsEnabled = false;  // Default TTS state
-        let currentUtterance = null;  // Variable to store the current utterance
 
-        // Handle TTS Toggle Switch
-        document.getElementById('tts-toggle').addEventListener('change', function() {
-            isTtsEnabled = this.checked;
-
-            if (!isTtsEnabled && currentUtterance) {
-                // Stop TTS if it's currently speaking
-                speechSynthesis.cancel();
-            }
-        });
-
-        // Play Text-to-Speech
-        function playTTS(text) {
-            if (!isTtsEnabled) return;  // Exit if TTS is disabled
-
-            if (currentUtterance) {
-                speechSynthesis.cancel();  // Stop any ongoing TTS
-            }
-
-            currentUtterance = new SpeechSynthesisUtterance(text);
-            const voices = speechSynthesis.getVoices();
-            currentUtterance.voice = voices.find(voice => voice.name.includes('Google UK English Female')) || voices[0];
-
-            speechSynthesis.speak(currentUtterance);
-        }
-
-        // Add TTS Button Next to a Message
-        function addTTSButton(messageElement, text) {
-            // Check if the button already exists
-            if (messageElement.querySelector(`.${TTS_BUTTON_CLASS}`)) return;
-
-            // Create TTS button
-            const button = document.createElement('button');
-            button.className = TTS_BUTTON_CLASS;
-            button.innerHTML = '<i class="fas fa-volume-up"></i>';  // Speaker icon
-            button.title = 'Read Aloud';
-
-            // Add event listener for button click
-            button.addEventListener('click', () => {
-                playTTS(text);
-            });
-
-            // Append button to message element
-            messageElement.appendChild(button);
-        }
     </script>
 </body>
 </html>

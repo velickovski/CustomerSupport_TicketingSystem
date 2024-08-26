@@ -4,6 +4,9 @@ from dotenv import load_dotenv
 import openai
 import os
 import numpy as np
+import json
+import sqlite3
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
@@ -15,8 +18,47 @@ socketio = SocketIO(app)
 # Initialize OpenAI client
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
+# Define tools for function calling
+tools = [
+    {
+        "name": "create_ticket",
+        "description": "Create a ticket for the user's issue. The user should provide their username and a description of the issue.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "username": {
+                    "type": "string",
+                    "description": "The user's name.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of the user's issue.",
+                },
+            },
+            "required": ["username", "description"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_customer_support",
+        "description": "Answer customer support related questions, only be interested in jewelry and pieces that are bought from the store",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "Question about the store or the jewelry in it",
+                },
+            },
+            "required": ["question"],
+            "additionalProperties": False,
+        },
+    }
+]
+
 # Example allowed topics
 allowed_topics = ["jewelry care", "store hours", "location", "ticket creation", "support"]
+
 # Store conversation history
 conversation_history = [
     {
@@ -70,11 +112,47 @@ def is_topic_allowed(user_input):
             return True
     return False
 
+# Function to create a ticket
+def create_ticket(username, description):
+    try:
+        conn = sqlite3.connect('tickets.db')
+        cursor = conn.cursor()
+        # cursor.execute('''DROP TABLE tickets''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tickets (
+                ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        ''')
+
+        created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute('''
+            INSERT INTO tickets (user_id, message, status, created_at)
+            VALUES (?, ?, ?, ?)
+        ''', (username, description, "open", created_at))
+
+        conn.commit()
+        conn.close()
+        return f"Ticket created successfully for {username}. Your issue has been recorded and our support team will contact you shortly."
+    except Exception as e:
+        return "Error: Could not create the ticket. Please try again."
+
+# Function to handle customer support
+def get_customer_support(question):
+    # Logic to return customer support answers
+    # For demonstration, we are returning a fixed response
+    return "This is the customer support response."
+
 @app.route('/')
 def index():
     return send_from_directory('templates', 'index.html')
 
 ongoing_request = None
+
+
 
 @socketio.on('message')
 def handle_message(data):
@@ -88,24 +166,38 @@ def handle_message(data):
             if ongoing_request:
                 ongoing_request['stream'].close()
 
-            response_stream = openai.ChatCompletion.create(
-                model="gpt-4",
+            response = openai.ChatCompletion.create(
+                model="gpt-4o",
                 messages=conversation_history,
-                stream=True
+                functions=tools,
+                function_call="auto"
             )
 
-            ongoing_request = {'stream': response_stream, 'message_id': str(len(conversation_history))}
+            # Check if the model requested to call a function
+            if response['choices'][0].get('finish_reason') == 'function_call':
+                function_name = response['choices'][0]['message']['function_call']['name']
+                arguments = json.loads(response['choices'][0]['message']['function_call']['arguments'])
+                print(function_name)
+                if function_name == "create_ticket":
+                    username = arguments['username']
+                    description = arguments['description']
+                    emit('ticket',{'username':username, 'description':description,})
+                elif function_name == "get_customer_support":
+                    question = arguments['question']
+                    result = get_customer_support(question)
 
-            response_text = ""
-            for chunk in response_stream:
-                if 'choices' in chunk and len(chunk['choices']) > 0:
-                    delta_content = chunk['choices'][0].get('delta', {}).get('content', '')
-                    if delta_content:
-                        response_text += delta_content
-                        emit('response', {'message_id': ongoing_request['message_id'], 'message': delta_content, 'formatted': False})
+                # Emit the result of the function to the frontend
+                emit('response', {'message_id': str(len(conversation_history)), 'message': result, 'formatted': False})
 
-            # Add the response to the conversation history
-            conversation_history.append({"role": "assistant", "content": response_text})
+                # Add the function result to the conversation history
+                conversation_history.append({"role": "assistant", "content": result})
+            else:
+                response_text = response['choices'][0]['message']['content']
+
+                emit('response', {'message_id': str(len(conversation_history)), 'message': response_text, 'formatted': False})
+
+                # Add the response to the conversation history
+                conversation_history.append({"role": "assistant", "content": response_text})
 
             ongoing_request = None
 
@@ -120,5 +212,13 @@ def handle_message(data):
         # Optionally add this to the conversation history
         conversation_history.append({"role": "assistant", "content": response_text})
 
+@socketio.on('ticket_submission')
+def handle_ticket_submission(data):
+    username = data.get('username')
+    description = data.get('description')
+    if username and description:
+        response_message = create_ticket(username, description)
+        emit('response', {'message': response_message})
+
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5001, debug=True)

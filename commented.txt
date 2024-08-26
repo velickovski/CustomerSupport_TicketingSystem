@@ -1,0 +1,49 @@
+
+# # Function to get embeddings for allowed topics
+# def get_embeddings(topics):
+#     embeddings = {}
+#     for topic in topics:
+#         response = openai.Embedding.create(input=topic, model="text-embedding-ada-002")
+#         embeddings[topic] = response['data'][0]['embedding']
+#     return embeddings
+
+# # Store embeddings for allowed topics and ticket-related phrases
+# allowed_embeddings = get_embeddings(allowed_topics)
+# # Function to calculate cosine similarity
+# def cosine_similarity(vec1, vec2):
+#     dot_product = np.dot(vec1, vec2)
+#     norm_vec1 = np.linalg.norm(vec1)
+#     norm_vec2 = np.linalg.norm(vec2)
+#     return dot_product / (norm_vec1 * norm_vec2)
+
+# # Function to check if the input is related to ticket creation
+# def is_ticket_creation_request(user_input):
+#     user_embedding = openai.Embedding.create(input=user_input, model="text-embedding-ada-002")['data'][0]['embedding']
+#     for phrase, embedding in user_embedding.items():
+#         similarity = cosine_similarity(user_embedding, embedding)
+#         if similarity > 0.8:  # Threshold 
+#             return True
+#     return False
+
+# # Function to save a ticket to the database
+# def save_ticket_to_db(username, description):
+#     conn = sqlite3.connect('chatbot.db')
+#     cursor = conn.cursor()
+
+#     cursor.execute('''CREATE TABLE IF NOT EXISTS tickets
+#                       (id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                        ticket_id TEXT UNIQUE,
+#                        user_name TEXT,
+#                        message TEXT,
+#                        status TEXT,
+#                        created_at TEXT)''')
+
+#     ticket_id = str(uuid.uuid4())
+#     status = "open"
+#     created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+#     cursor.execute('''INSERT INTO tickets (ticket_id, user_name, message, status, created_at)
+#                       VALUES (?, ?, ?, ?, ?)''', (ticket_id, username, description, status, created_at))
+
+#     conn.commit()
+#     conn.close()
