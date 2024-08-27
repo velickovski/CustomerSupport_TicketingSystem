@@ -1,37 +1,34 @@
 import sqlite3
+from sklearn.feature_extraction.text import TfidfVectorizer
+import numpy as np
+import pickle
 
-def remove_column_from_tickets(db_path='tickets.db'):
-    # Connect to SQLite
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
+# Connect to SQLite
+conn = sqlite3.connect('data.db')
+c = conn.cursor()
 
-    # Step 1: Create a new table without the 'product_id' column
-    c.execute('''
-        CREATE TABLE tickets_new (
-            ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            message TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'open',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+# Fetch data from the database
+c.execute('SELECT id, description FROM products')
+rows = c.fetchall()
 
-    # Step 2: Copy data from the old table to the new table
-    c.execute('''
-        INSERT INTO tickets_new (ticket_id, user_id, message, status, created_at)
-        SELECT ticket_id, user_id, message, status, created_at
-        FROM tickets
-    ''')
+descriptions = [row[1] for row in rows]
 
-    # Step 3: Drop the old table
-    c.execute('DROP TABLE tickets')
+# Vectorize descriptions
+vectorizer = TfidfVectorizer()
+tfidf_matrix = vectorizer.fit_transform(descriptions)
 
-    # Step 4: Rename the new table to the original table name
-    c.execute('ALTER TABLE tickets_new RENAME TO tickets')
+# Convert sparse matrix to dense array
+dense_array = tfidf_matrix.toarray()
 
-    # Commit changes and close the connection
-    conn.commit()
-    conn.close()
+# Add new column for vectorized data
+for i, row in enumerate(rows):
+    id = row[0]
+    vector = dense_array[i]
+    vector_blob = pickle.dumps(vector)  # Serialize the vector
 
-# Call the function
-remove_column_from_tickets()
+    # Insert or update the vector in the database
+    c.execute('''ALTER TABLE products ADD COLUMN vector BLOB''')
+    c.execute('UPDATE products SET vector = ? WHERE id = ?', (vector_blob, id))
+
+conn.commit()
+conn.close()
