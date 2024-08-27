@@ -117,7 +117,6 @@ def create_ticket(username, description):
     try:
         conn = sqlite3.connect('tickets.db')
         cursor = conn.cursor()
-        # cursor.execute('''DROP TABLE tickets''')
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tickets (
                 ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -177,7 +176,6 @@ def handle_message(data):
             if response['choices'][0].get('finish_reason') == 'function_call':
                 function_name = response['choices'][0]['message']['function_call']['name']
                 arguments = json.loads(response['choices'][0]['message']['function_call']['arguments'])
-                print(function_name)
                 if function_name == "create_ticket":
                     username = arguments['username']
                     description = arguments['description']
