@@ -7,6 +7,9 @@ import numpy as np
 import json
 import sqlite3
 from datetime import datetime
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import pickle
 
 # Load environment variables
 load_dotenv()
@@ -112,11 +115,68 @@ def is_topic_allowed(user_input):
             return True
     return False
 
+def is_description_match(input_description, db_path='tickets.db', threshold=0.7):
+    # Connect to SQLite
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+
+    # Fetch descriptions and vectors from the database
+    c.execute('SELECT description, vector FROM products')
+    rows = c.fetchall()
+
+    # Separate descriptions and vectors
+    descriptions, vectors = zip(*rows)
+    vectors = [pickle.loads(vector) for vector in vectors]
+
+    # Initialize the vectorizer
+    vectorizer = TfidfVectorizer()
+    vectorizer.fit(descriptions)  # Fit on existing descriptions to maintain consistency
+
+    # Vectorize the input description
+    input_vector = vectorizer.transform([input_description])
+
+    # Convert input_vector to dense format
+    input_vector_dense = input_vector.toarray().flatten()
+
+    # Convert vectors to dense format
+    vectors_array_dense = np.array([vec.flatten() if hasattr(vec, 'flatten') else vec for vec in vectors])
+
+    # Compute similarities
+    similarities = np.array([cosine_similarity(input_vector_dense, vec) for vec in vectors_array_dense])
+
+    # Find the maximum similarity score
+    max_similarity = np.max(similarities)
+
+    # Close the connection
+    conn.close()
+
+    # Return True if similarity is higher than the threshold, otherwise False
+    return max_similarity > threshold
+
+def check_id_exists(product_id):
+    # Connect to the SQLite database
+    conn = sqlite3.connect('tickets.db')
+    cursor = conn.cursor()
+
+    # SQL query to check if the ID exists
+    query = "SELECT 1 FROM products WHERE ID = ?"
+    cursor.execute(query, (product_id,))
+
+    # Fetch one result
+    result = cursor.fetchone()
+
+    # Close the connection
+    conn.close()
+
+    return result is not None
+
 # Function to create a ticket
 def create_ticket(username, description):
     try:
         conn = sqlite3.connect('tickets.db')
         cursor = conn.cursor()
+
+        # Create the tickets table if it doesn't already exist
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tickets (
                 ticket_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,6 +187,7 @@ def create_ticket(username, description):
             )
         ''')
 
+        # Insert a new ticket into the tickets table
         created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cursor.execute('''
             INSERT INTO tickets (user_id, message, status, created_at)
@@ -137,7 +198,7 @@ def create_ticket(username, description):
         conn.close()
         return f"Ticket created successfully for {username}. Your issue has been recorded and our support team will contact you shortly."
     except Exception as e:
-        return "Error: Could not create the ticket. Please try again."
+        return f"Error: Could not create the ticket. Please try again. {e}"
 
 # Function to handle customer support
 def get_customer_support(question):
@@ -172,7 +233,7 @@ def handle_message(data):
                 function_call="auto"
             )
 
-            # Check if the model requested to call a function
+            # Check if the model requested to call a function for ticket_creation
             if response['choices'][0].get('finish_reason') == 'function_call':
                 function_name = response['choices'][0]['message']['function_call']['name']
                 arguments = json.loads(response['choices'][0]['message']['function_call']['arguments'])
@@ -180,15 +241,6 @@ def handle_message(data):
                     username = arguments['username']
                     description = arguments['description']
                     emit('ticket',{'username':username, 'description':description,})
-                elif function_name == "get_customer_support":
-                    question = arguments['question']
-                    result = get_customer_support(question)
-
-                # Emit the result of the function to the frontend
-                emit('response', {'message_id': str(len(conversation_history)), 'message': result, 'formatted': False})
-
-                # Add the function result to the conversation history
-                conversation_history.append({"role": "assistant", "content": result})
             else:
                 response_text = response['choices'][0]['message']['content']
 
@@ -214,9 +266,13 @@ def handle_message(data):
 def handle_ticket_submission(data):
     username = data.get('username')
     description = data.get('description')
-    if username and description:
+    id = data.get('id')
+    product_description = data.get('product_description')
+    if username and description and (check_id_exists(id) or is_description_match(product_description)):
         response_message = create_ticket(username, description)
         emit('response', {'message': response_message})
-
+    else:
+        emit('response', {'message': "That product ID or Product Description doesn't exist in our sold item list."} )
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0', port=5001, debug=True)
+    
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
