@@ -1,15 +1,11 @@
-
-        // JavaScript for real-time chat application
-
-        // Connect to the server via Socket.IO
-        const socket = io();
+const socket = io();
         let currentMessageId = null;
 
         // Automatically focus on the input field when the page loads
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('message').focus();
         });
-
+        
         // Handle incoming messages from the server
         socket.on('response', function(data) {
             console.log('Received data:', data);  // Log received data
@@ -69,7 +65,47 @@
                 messageInput.value = '';
             }
         }
+        
 
+
+
+        function openModal(data) {
+            document.getElementById('username').value = data.username || '';
+            document.getElementById('description').value = data.description || '';
+            document.getElementById('id').value = '';
+            document.getElementById('product_description').value = '';
+            
+            const modal = document.getElementById('ticketModal');
+            modal.style.display = 'block';
+            modal.classList.add('show');
+            modal.classList.remove('hide');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('ticketModal');
+            modal.classList.add('hide');
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 500); // Wait for the closing animation to finish
+        }
+
+
+        function submitTicket() {
+            const username = document.getElementById('username').value;
+            const description = document.getElementById('description').value;
+            const id = document.getElementById('id').value;
+            const product_description = document.getElementById('product_description').value;
+            if (username && description && (id || product_description)) {
+                socket.emit('ticket_submission', { username: username, description: description, id: id, product_description: product_description });
+                closeModal();
+            } else {
+                alert('Please fill in all fields.');
+            }
+        }
+        socket.on('ticket', function(data) {
+            openModal(data);
+        });
         // Attach event listener for the Enter key
         document.getElementById('message').addEventListener('keydown', function(event) {
             if (event.key === 'Enter') {
@@ -78,52 +114,3 @@
             }
         });
 
-        // Constants and Variables
-        const TTS_BUTTON_CLASS = 'tts-button';  // Class name for the TTS button
-        let isTtsEnabled = false;  // Default TTS state
-        let currentUtterance = null;  // Variable to store the current utterance
-
-        // Handle TTS Toggle Switch
-        document.getElementById('tts-toggle').addEventListener('change', function() {
-            isTtsEnabled = this.checked;
-
-            if (!isTtsEnabled && currentUtterance) {
-                // Stop TTS if it's currently speaking
-                speechSynthesis.cancel();
-            }
-        });
-
-        // Play Text-to-Speech
-        function playTTS(text) {
-            if (!isTtsEnabled) return;  // Exit if TTS is disabled
-
-            if (currentUtterance) {
-                speechSynthesis.cancel();  // Stop any ongoing TTS
-            }
-
-            currentUtterance = new SpeechSynthesisUtterance(text);
-            const voices = speechSynthesis.getVoices();
-            currentUtterance.voice = voices.find(voice => voice.name.includes('Google UK English Female')) || voices[0];
-
-            speechSynthesis.speak(currentUtterance);
-        }
-
-        // Add TTS Button Next to a Message
-        function addTTSButton(messageElement, text) {
-            // Check if the button already exists
-            if (messageElement.querySelector(`.${TTS_BUTTON_CLASS}`)) return;
-
-            // Create TTS button
-            const button = document.createElement('button');
-            button.className = TTS_BUTTON_CLASS;
-            button.innerHTML = '<i class="fas fa-volume-up"></i>';  // Speaker icon
-            button.title = 'Read Aloud';
-
-            // Add event listener for button click
-            button.addEventListener('click', () => {
-                playTTS(text);
-            });
-
-            // Append button to message element
-            messageElement.appendChild(button);
-        }

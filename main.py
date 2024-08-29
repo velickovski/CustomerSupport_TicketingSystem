@@ -170,6 +170,22 @@ def check_id_exists(product_id):
 
     return result is not None
 
+def check_name_exists(name):
+    # Connect to the SQLite database
+    conn = sqlite3.connect('tickets.db')
+    cursor = conn.cursor()
+
+    # SQL query to check if the ID exists
+    query = "SELECT 1 FROM users WHERE name = ?"
+    cursor.execute(query, (name,))
+
+    # Fetch one result
+    result = cursor.fetchone()
+
+    # Close the connection
+    conn.close()
+
+    return result is not None
 # Function to create a ticket
 def create_ticket(username, description):
     try:
@@ -268,11 +284,11 @@ def handle_ticket_submission(data):
     description = data.get('description')
     id = data.get('id')
     product_description = data.get('product_description')
-    if username and description and (check_id_exists(id) or is_description_match(product_description)):
+    if username and description and (check_id_exists(id) or is_description_match(product_description) and check_name_exists(username)):
         response_message = create_ticket(username, description)
-        emit('response', {'message': response_message})
+        emit('response', {'message_id': str(len(conversation_history)), 'message': response_message})
     else:
-        emit('response', {'message': "That product ID or Product Description doesn't exist in our sold item list."} )
+        emit('response', {'message_id': str(len(conversation_history)), 'message': "That name or product doesn't exist in our sold item list."} )
 if __name__ == "__main__":
     
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

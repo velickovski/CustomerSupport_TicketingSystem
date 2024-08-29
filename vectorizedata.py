@@ -1,34 +1,38 @@
 import sqlite3
-from sklearn.feature_extraction.text import TfidfVectorizer
-import numpy as np
-import pickle
+import random
 
-# Connect to SQLite
-conn = sqlite3.connect('data.db')
-c = conn.cursor()
+# Connect to the SQLite database
+conn = sqlite3.connect('tickets.db')
+cursor = conn.cursor()
 
-# Fetch data from the database
-c.execute('SELECT id, description FROM products')
-rows = c.fetchall()
+# List of random names
+names = [
+    "John Doe", "Jane Smith", "Alice Johnson", "Michael Brown", "Emily Davis",
+    "David Wilson", "Sophia Garcia", "Liam Martinez", "Olivia Anderson", "Noah Taylor",
+    "Mia Thomas", "James White", "Emma Lee", "Benjamin Harris", "Isabella Walker",
+    "Lucas Hall", "Charlotte Allen", "Mason Young", "Amelia King", "Ethan Wright"
+]
 
-descriptions = [row[1] for row in rows]
+# List of product descriptions
+products = [
+    "Gold ring with diamond", "Silver necklace with emerald", "Platinum bracelet with sapphires",
+    "Rose gold pendant with ruby", "White gold earrings with pearls", "Diamond-encrusted watch",
+    "Emerald engagement ring", "Sapphire-studded brooch", "Ruby and diamond cufflinks",
+    "Gold charm bracelet", "Silver anklet with charms", "Platinum wedding band",
+    "Opal pendant necklace", "Amethyst ring", "Turquoise beaded necklace",
+    "Topaz stud earrings", "Onyx cufflinks", "Pearl drop earrings",
+    "Aquamarine ring", "Garnet bracelet"
+]
 
-# Vectorize descriptions
-vectorizer = TfidfVectorizer()
-tfidf_matrix = vectorizer.fit_transform(descriptions)
+# Insert the names and product descriptions into the 'products' table
+for i in range(1,21):
+    name = random.choice(names)
+    product_description = products[i-1]  # Use each product description in order
+    cursor.execute('''
+        INSERT INTO users (name, product_description)
+        VALUES (?, ?)
+    ''', (name, product_description))
 
-# Convert sparse matrix to dense array
-dense_array = tfidf_matrix.toarray()
-
-# Add new column for vectorized data
-for i, row in enumerate(rows):
-    id = row[0]
-    vector = dense_array[i]
-    vector_blob = pickle.dumps(vector)  # Serialize the vector
-
-    # Insert or update the vector in the database
-    c.execute('''ALTER TABLE products ADD COLUMN vector BLOB''')
-    c.execute('UPDATE products SET vector = ? WHERE id = ?', (vector_blob, id))
-
+# Commit the changes and close the connection
 conn.commit()
 conn.close()
