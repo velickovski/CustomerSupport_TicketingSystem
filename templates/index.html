@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-Time Chatbot</title>
     <!-- Import Font Awesome for icons -->
-    <link rel="stylesheet" href="../templates/styles.css">
+    <link rel="stylesheet" href="../templates/static/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+    <script src="../templates/static/scripts.js"></script>
 </head>
 <body>
     <div id="ticketModal">
@@ -37,8 +39,6 @@
             <button onclick="sendMessage()">Send</button>
         </div>
     </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
-    <script src="../templates/scripts.js"></script>
+    
 </body>
 </html>

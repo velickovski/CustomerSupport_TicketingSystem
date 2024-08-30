@@ -35,7 +35,11 @@ tools = [
                 },
                 "description": {
                     "type": "string",
-                    "description": "Description of the user's issue.",
+                    "description": "Description of the user's issue with a little more .",
+                },
+                "item": {
+                    "type": "string",
+                    "description": "Type of jewelry that the user have issue with (with everything that jewelry has attached to it or their material), first letter should be upper case"
                 },
             },
             "required": ["username", "description"],
@@ -243,7 +247,7 @@ def handle_message(data):
                 ongoing_request['stream'].close()
 
             response = openai.ChatCompletion.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=conversation_history,
                 functions=tools,
                 function_call="auto"
@@ -256,7 +260,8 @@ def handle_message(data):
                 if function_name == "create_ticket":
                     username = arguments['username']
                     description = arguments['description']
-                    emit('ticket',{'username':username, 'description':description,})
+                    item = arguments['item']
+                    emit('ticket',{'username':username, 'description':description, 'item':item})
             else:
                 response_text = response['choices'][0]['message']['content']
 
@@ -284,7 +289,7 @@ def handle_ticket_submission(data):
     description = data.get('description')
     id = data.get('id')
     product_description = data.get('product_description')
-    if username and description and (check_id_exists(id) or is_description_match(product_description) and check_name_exists(username)):
+    if username and description and (check_id_exists(id) or is_description_match(product_description)) and check_name_exists(username):
         response_message = create_ticket(username, description)
         emit('response', {'message_id': str(len(conversation_history)), 'message': response_message})
     else:

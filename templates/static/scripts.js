@@ -73,7 +73,7 @@ const socket = io();
             document.getElementById('username').value = data.username || '';
             document.getElementById('description').value = data.description || '';
             document.getElementById('id').value = '';
-            document.getElementById('product_description').value = '';
+            document.getElementById('product_description').value = data.item || '';
             
             const modal = document.getElementById('ticketModal');
             modal.style.display = 'block';
