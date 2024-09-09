@@ -9,7 +9,7 @@ venv/
 __pycache__/
 *.db
 *.sqlite3
-
+Dockerfile
 # Ignore IDE and editor-specific files
 .vscode/
 .idea/
