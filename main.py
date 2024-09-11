@@ -244,7 +244,7 @@ def handle_message(data):
 
         try:
             if ongoing_request:
-                ongoing_request['stream'].close()
+                ongoing_requespyt['stream'].close()
 
             response = openai.ChatCompletion.create(
                 model="gpt-4o-mini",
